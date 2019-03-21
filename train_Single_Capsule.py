@@ -72,7 +72,7 @@ if args.resume:
     print(best_acc)
 
 trainpd = pd.DataFrame({"epoch":"","accuracy":"","loss":""},index=["0"])
-savepath='./train/'+str(args.mname)+'/checkpoints/'
+savepath='./train/'+str(args.mname)
 
 if not os.path.isdir(savepath):
     os.makedirs(savepath)
@@ -95,7 +95,7 @@ class CapsuleLoss(nn.Module):
 
         return (margin_loss + 0.0005 * reconstruction_loss) / images.size(0)
 
-optimizer = Adam(Dnet.parameters(),lr = 0.01, weight_decay=5e-4)
+optimizer = Adam(Dnet.parameters(),lr = 0.001, weight_decay=0)
 
 capsuleloss = CapsuleLoss()
 
@@ -107,6 +107,8 @@ def train(epoch):
     total = 0
     start_time=time.time()
     for batch_idx, (inputs, targets) in enumerate(trainloader):
+        labels = targets
+        labels = labels.to(device)
         targets = torch.eye(NUM_CLASSES).index_select(dim=0, index=targets)
         inputs, targets = inputs.to(device), targets.to(device)
         
@@ -115,12 +117,16 @@ def train(epoch):
         loss = capsuleloss(inputs,targets,outputs,reconstructions)
         loss.backward()
         optimizer.step()
-
+        
         train_loss += loss.item()
         _, predicted = outputs.max(1)
+        #print(targets)
+        #print(predicted)
+        #print(outputs)
         total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
+        correct += predicted.eq(labels).sum().item()
         accuracy=100.*correct/total
+        print('batchidx:{},trainloss:{},accuracy:{}'.format(batch_idx,train_loss/(batch_idx+1),accuracy))
 #       progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
 #            % (train_loss/(batch_idx+1), accuracy, correct, total))
     end_time=time.time()
@@ -150,15 +156,21 @@ def test(epoch):
     total = 0
     start_time=time.time()
     for batch_idx, (inputs, targets) in enumerate(testloader):
+        labels = targets
+        labels = labels.to(device)
+        targets = torch.eye(NUM_CLASSES).index_select(dim=0, index=targets)
         inputs, targets = inputs.to(device), targets.to(device)
-        outputs, reconstructions = Dnet(inputs, targets)
+        outputs, reconstructions = Dnet(inputs)
+        #print(targets)
+        #print(outputs)
         loss = capsuleloss(inputs,targets,outputs,reconstructions)
 
         test_loss += loss.item()
         _, predicted = outputs.max(1)
         total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
+        correct += predicted.eq(labels).sum().item()
         accuracy=100.*correct/total
+        print('batchidx:{},testloss:{},accuracy:{}'.format(batch_idx,test_loss/(batch_idx+1),accuracy))
 
     end_time=time.time()
     epoch_time=end_time-start_time   
@@ -178,7 +190,7 @@ def test(epoch):
         }
         #if not os.path.isdir('checkpoint'):
             #os.mkdir('checkpoint')
-        torch.save(state, savepath)
+        torch.save(state, os.path.join(savepath,'best_check.plk'))
         best_acc = acc
     return data
 
@@ -194,9 +206,10 @@ for epoch in range(start_epoch, start_epoch+90):
     trainnp=np.vstack((trainnp,np.array(nd)))
     testnp=np.vstack((testnp,np.array(ed)))
 
-savepath='../outputs/'+str(args.mname)+'train01.csv'
+#savepath='../outputs/'+str(args.mname)+'train01.csv'
 train_data=pd.DataFrame(trainnp,columns=['epoch','accuracy','loss','epoch_time'])
-train_data.to_csv(savepath)
-savepath='../outputs/'+str(args.mname)+'test01.csv'
+train_data.to_csv(os.path.join(savepath,'train.csv'))
+#savepath='../outputs/'+str(args.mname)+'test01.csv'
 test_data=pd.DataFrame(testnp,columns=['epoch','accuracy','loss','epoch_time'])
-test_data.to_csv(savepath)
+test_data.to_csv(os.path.join(savepath,'test.csv'))
+
