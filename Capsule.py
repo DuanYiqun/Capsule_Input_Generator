@@ -38,8 +38,10 @@ class CapsuleLayer(nn.Module):
     def forward(self, x):
         if self.num_route_nodes != -1:
             priors = x[None, :, :, None, :] @ self.route_weights[:, None, :, :, :]
-
-            logits = Variable(torch.zeros(*priors.size())).cuda()
+            #GPU
+            #logits = Variable(torch.zeros(*priors.size())).cuda() 
+            #CPU 
+            logits = Variable(torch.zeros(*priors.size()))
             for i in range(self.num_iterations):
                 probs = F.softmax(logits, dim=2)
                 outputs = self.squash((probs * priors).sum(dim=2, keepdim=True))
@@ -93,6 +95,46 @@ class CapsuleNet(nn.Module):
         reconstructions = self.decoder((x * y[:, :, None]).view(x.size(0), -1))
 
         return classes, reconstructions
+
+class CapsuleNet_test(nn.Module):
+    def __init__(self):
+        super(CapsuleNet_test, self).__init__()
+
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=256, kernel_size=9, stride=1)
+        self.primary_capsules = CapsuleLayer(num_capsules=8, num_route_nodes=-1, in_channels=256, out_channels=32,
+                                             kernel_size=9, stride=2)
+        self.digit_capsules = CapsuleLayer(num_capsules=NUM_CLASSES, num_route_nodes=32 * 6 * 6, in_channels=8,
+                                           out_channels=16)
+
+        self.decoder = nn.Sequential(
+            nn.Linear(16 * NUM_CLASSES, 512),
+            nn.ReLU(inplace=True),
+            nn.Linear(512, 1024),
+            nn.ReLU(inplace=True),
+            nn.Linear(1024, 784),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x, y=None):
+        x = F.relu(self.conv1(x), inplace=True)
+        x = self.primary_capsules(x)
+        x = self.digit_capsules(x).squeeze().transpose(0, 1)
+        classes = (x ** 2).sum(dim=-1) ** 0.5 # 将最后一维度 16 加起来 原论文应该是求16 的一届norm 为绝对值之和 这里是二阶 norm
+        norm = classes
+        classes = F.softmax(classes, dim=-1) # 原论文并没有softmax
+
+        if y is None:
+            # In all batches, get the most active capsule.
+            _, max_length_indices = classes.max(dim=1)
+            max_length_indices = max_length_indices.to('cpu')
+            #y = Variable(torch.eye(NUM_CLASSES)).index_select(dim=0, index=max_length_indices.data).cuda()
+            y = Variable(torch.eye(NUM_CLASSES)).index_select(dim=0, index=max_length_indices.data)
+            #print(y)
+            #print(x)
+
+        reconstructions = self.decoder((x * y[:, :, None]).view(x.size(0), -1))
+
+        return classes, reconstructions, x, norm
 
 if __name__ == "__main__":
     x = torch.randn(2,1,28,28)

@@ -127,9 +127,9 @@ generator.apply(weights_init_normal)
 discriminator.apply(weights_init_normal)
 
 # Configure data loader
-os.makedirs('../../data/mnist', exist_ok=True)
+#os.makedirs('./data/', exist_ok=True)
 dataloader = torch.utils.data.DataLoader(
-    datasets.MNIST('../../data/mnist', train=True, download=True,
+    datasets.MNIST('./data/', train=True, download=True,
                    transform=transforms.Compose([
                         transforms.Resize(opt.img_size),
                         transforms.ToTensor(),
@@ -151,8 +151,10 @@ def sample_image(n_row, batches_done):
     # Get labels ranging from 0 to n_classes for n rows
     labels = np.array([num for _ in range(n_row) for num in range(n_row)])
     labels = Variable(LongTensor(labels))
+
     gen_imgs = generator(z, labels)
     save_image(gen_imgs.data, 'images/%d.png' % batches_done, nrow=n_row, normalize=True)
+
 
 # ----------
 #  Training

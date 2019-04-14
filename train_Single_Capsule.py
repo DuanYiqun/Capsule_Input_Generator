@@ -10,7 +10,7 @@ from torch.optim import Adam
 #from torchvision.utils import make_grid
 from tqdm import tqdm
 import torchnet as tnt
-from CapsuleGan import CapsuleNet
+from Capsule import CapsuleNet
 import argparse
 import torchvision
 import torchvision.transforms as transforms
